@@ -8,10 +8,13 @@
 package nl.lxtreme.binutils.hex;
 
 
-import java.io.*;
-import java.nio.*;
+import java.io.IOException;
+import java.io.Reader;
+import java.nio.ByteOrder;
 
-import nl.lxtreme.binutils.hex.util.*;
+import nl.lxtreme.binutils.hex.util.Checksum;
+import nl.lxtreme.binutils.hex.util.Checksummer;
+import nl.lxtreme.binutils.hex.util.HexUtils;
 
 
 /**
@@ -55,221 +58,186 @@ import nl.lxtreme.binutils.hex.util.*;
  * Motorola Exormax.
  * </p>
  */
-public class SRecordReader extends AbstractReader
-{
-  // CONSTANTS
+public class SRecordReader extends AbstractReader {
+    // CONSTANTS
 
-  private static final char PREAMBLE = 'S';
+    private static final char PREAMBLE = 'S';
 
-  // VARIABLES
+    // VARIABLES
 
-  private final Checksummer checksum;
+    private final Checksummer checksum;
 
-  private Integer address;
-  private Integer dataLength;
-  private boolean inDataRecord;
+    private Integer address;
+    private Integer dataLength;
+    private boolean inDataRecord;
 
-  // CONSTRUCTORS
+    // CONSTRUCTORS
 
-  /**
-   * Creates a new SRecordDataProvider instance.
-   *
-   * @param aReader
-   */
-  public SRecordReader( final Reader aReader )
-  {
-    super( aReader );
+    /**
+     * Creates a new SRecordDataProvider instance.
+     *
+     * @param aReader
+     */
+    public SRecordReader(final Reader aReader) {
+        super(aReader);
 
-    this.checksum = Checksum.ONES_COMPLEMENT.instance();
-  }
-
-  // METHODS
-
-  @Override
-  public long getAddress() throws IOException
-  {
-    if ( this.address == null )
-    {
-      throw new IOException( "Unexpected call to getAddress!" );
+        this.checksum = Checksum.ONES_COMPLEMENT.instance();
     }
-    return this.address;
-  }
 
-  @Override
-  public int readByte() throws IOException
-  {
-    int ch;
+    // METHODS
 
-    do
-    {
-      ch = readSingleByte();
-      if ( ch == -1 )
-      {
-        // End-of-file reached; return immediately!
-        return -1;
-      }
-
-      if ( PREAMBLE == ch )
-      {
-        // New record started...
-        this.inDataRecord = isDataRecord( startNewRecord() );
-      }
-      else if ( this.dataLength != null )
-      {
-        final int secondHexDigit = this.reader.read();
-        if ( secondHexDigit == -1 )
-        {
-          throw new IOException( "Unexpected end-of-stream!" );
+    @Override
+    public long getAddress() throws IOException {
+        if (this.address == null) {
+            throw new IOException("Unexpected call to getAddress!");
         }
-        final char[] buf = { ( char )ch, ( char )secondHexDigit };
+        return this.address;
+    }
 
-        final byte dataByte = HexUtils.parseHexByte( buf );
-        if ( this.dataLength == 0 )
-        {
-          // All data-bytes returned? If so, verify the CRC we've just read...
-          final byte calculatedCRC = this.checksum.getResult();
-          if ( dataByte != calculatedCRC )
-          {
-            throw new IOException( "CRC Error! Expected: " + dataByte + "; got: " + calculatedCRC );
-          }
+    @Override
+    public int readByte() throws IOException {
+        int ch;
+
+        do {
+            ch = readSingleByte();
+            if (ch == -1) {
+                // End-of-file reached; return immediately!
+                return -1;
+            }
+
+            if (PREAMBLE == ch) {
+                // New record started...
+                this.inDataRecord = isDataRecord(startNewRecord());
+            } else if (this.dataLength != null) {
+                final int secondHexDigit = this.reader.read();
+                if (secondHexDigit == -1) {
+                    throw new IOException("Unexpected end-of-stream!");
+                }
+                final char[] buf = {(char) ch, (char) secondHexDigit};
+
+                final byte dataByte = HexUtils.parseHexByte(buf);
+                if (this.dataLength == 0) {
+                    // All data-bytes returned? If so, verify the CRC we've just read...
+                    final byte calculatedCRC = this.checksum.getResult();
+                    if (dataByte != calculatedCRC) {
+                        throw new IOException("CRC Error! Expected: " + dataByte + "; got: " + calculatedCRC);
+                    }
+                } else {
+                    // Decrease the number of hex-bytes we've got to read...
+                    this.checksum.add((byte) dataByte);
+
+                    this.dataLength--;
+                    this.address++;
+
+                    if (this.inDataRecord) {
+                        return (dataByte & 0xFF);
+                    }
+                }
+            }
         }
-        else
-        {
-          // Decrease the number of hex-bytes we've got to read...
-          this.checksum.add( ( byte )dataByte );
+        while (ch != -1);
 
-          this.dataLength--;
-          this.address++;
+        // We should never come here; it means that we've found a situation that
+        // isn't covered by our loop above...
+        throw new IOException("Invalid Intel HEX-file!");
+    }
 
-          if ( this.inDataRecord )
-          {
-            return ( dataByte & 0xFF );
-          }
+    /**
+     * @see nl.lxtreme.cpemu.util.data.impl.AbstractDataProvider#getByteOrder()
+     */
+    @Override
+    protected ByteOrder getByteOrder() {
+        return ByteOrder.BIG_ENDIAN;
+    }
+
+    /**
+     * Returns the address length in number of bytes of a given SRecord-type.
+     *
+     * @param aType the SRecord-type to return the address length for.
+     * @return the address length as number of bytes.
+     */
+    private int getAddressLength(final int aType) {
+        int result = 2;
+        if ((aType == 2) || (aType == 8)) {
+            result = 3;
+        } else if ((aType == 3) || (aType == 7)) {
+            result = 4;
         }
-      }
-    }
-    while ( ch != -1 );
 
-    // We should never come here; it means that we've found a situation that
-    // isn't covered by our loop above...
-    throw new IOException( "Invalid Intel HEX-file!" );
-  }
-
-  /**
-   * @see nl.lxtreme.cpemu.util.data.impl.AbstractDataProvider#getByteOrder()
-   */
-  @Override
-  protected ByteOrder getByteOrder()
-  {
-    return ByteOrder.BIG_ENDIAN;
-  }
-
-  /**
-   * Returns the address length in number of bytes of a given SRecord-type.
-   *
-   * @param aType
-   *          the SRecord-type to return the address length for.
-   * @return the address length as number of bytes.
-   */
-  private int getAddressLength( final int aType )
-  {
-    int result = 2;
-    if ( ( aType == 2 ) || ( aType == 8 ) )
-    {
-      result = 3;
-    }
-    else if ( ( aType == 3 ) || ( aType == 7 ) )
-    {
-      result = 4;
+        return result;
     }
 
-    return result;
-  }
-
-  /**
-   * @param aType
-   *          the integer (srecord-)type;
-   * @return <code>true</code> if the given (srecord-)type is a data record,
-   *         otherwise <code>false</code>.
-   */
-  private boolean isDataRecord( final int aType )
-  {
-    return ( aType == 1 ) || ( aType == 2 ) || ( aType == 3 );
-  }
-
-  /**
-   * @param aType
-   *          the integer (srecord-)type;
-   * @return <code>true</code> if the given (srecord-)type is a header record,
-   *         otherwise <code>false</code>.
-   */
-  private boolean isHeaderRecord( final int aType )
-  {
-    return ( aType == 0 );
-  }
-
-  /**
-   * Returns whether the given (srecord-)type is valid or not.
-   *
-   * @param aType
-   *          the integer (srecord-)type;
-   * @return <code>true</code> if the given (srecord-)type is valid, otherwise
-   *         <code>false</code>.
-   */
-  private boolean isValidType( final int aType )
-  {
-    // (S0, S1, S2, S3, S5, S7, S8, or S9)
-    return ( ( aType == 0 ) || ( aType == 1 ) || ( aType == 2 ) || ( aType == 3 ) || ( aType == 5 ) || ( aType == 7 )
-        || ( aType == 8 ) || ( aType == 9 ) );
-  }
-
-  private int startNewRecord() throws IOException
-  {
-    // First byte is the length of the data record...
-    final int type = this.reader.read() - '0';
-    if ( !isValidType( type ) )
-    {
-      throw new IOException( "Unknown type: " + type );
+    /**
+     * @param aType the integer (srecord-)type;
+     * @return <code>true</code> if the given (srecord-)type is a data record,
+     * otherwise <code>false</code>.
+     */
+    private boolean isDataRecord(final int aType) {
+        return (aType == 1) || (aType == 2) || (aType == 3);
     }
 
-    // recordLength is representing the number of address, data, and checksum
-    // bytes;
-    final int recordLength = HexUtils.readHexByte( this.reader );
-
-    final int addressLength = getAddressLength( type );
-    this.address = HexUtils.readHexNumber( this.reader, addressLength );
-
-    // Calculate the first part of the record CRC; which is defined as the
-    // ones-complement of all (non-CRC) items in the record...
-    // record length
-    this.checksum.reset();
-    this.checksum.add( ( byte )recordLength );
-    // address length
-    this.checksum.addWord( ( this.address >> 16 ) & 0xFFFF );
-    this.checksum.addWord( this.address & 0xFFFF );
-
-    // The real data length...
-    this.dataLength = recordLength - addressLength - 1;
-
-    if ( this.dataLength > 0 )
-    {
-      // Make sure NO data is only for records that should have NO data...
-      if ( !isDataRecord( type ) && !isHeaderRecord( type ) )
-      {
-        throw new IOException( "Data found while record-type should not have data!" );
-      }
-
-      this.address--;
-    }
-    else if ( this.dataLength == 0 )
-    {
-      // Make sure NO data is only for records that should have NO data...
-      if ( isDataRecord( type ) || isHeaderRecord( type ) )
-      {
-        throw new IOException( "No data found while record-type should have data!" );
-      }
+    /**
+     * @param aType the integer (srecord-)type;
+     * @return <code>true</code> if the given (srecord-)type is a header record,
+     * otherwise <code>false</code>.
+     */
+    private boolean isHeaderRecord(final int aType) {
+        return (aType == 0);
     }
 
-    return type;
-  }
+    /**
+     * Returns whether the given (srecord-)type is valid or not.
+     *
+     * @param aType the integer (srecord-)type;
+     * @return <code>true</code> if the given (srecord-)type is valid, otherwise
+     * <code>false</code>.
+     */
+    private boolean isValidType(final int aType) {
+        // (S0, S1, S2, S3, S5, S7, S8, or S9)
+        return ((aType == 0) || (aType == 1) || (aType == 2) || (aType == 3) || (aType == 5) || (aType == 7)
+                || (aType == 8) || (aType == 9));
+    }
+
+    private int startNewRecord() throws IOException {
+        // First byte is the length of the data record...
+        final int type = this.reader.read() - '0';
+        if (!isValidType(type)) {
+            throw new IOException("Unknown type: " + type);
+        }
+
+        // recordLength is representing the number of address, data, and checksum
+        // bytes;
+        final int recordLength = HexUtils.readHexByte(this.reader);
+
+        final int addressLength = getAddressLength(type);
+        this.address = HexUtils.readHexNumber(this.reader, addressLength);
+
+        // Calculate the first part of the record CRC; which is defined as the
+        // ones-complement of all (non-CRC) items in the record...
+        // record length
+        this.checksum.reset();
+        this.checksum.add((byte) recordLength);
+        // address length
+        this.checksum.addWord((this.address >> 16) & 0xFFFF);
+        this.checksum.addWord(this.address & 0xFFFF);
+
+        // The real data length...
+        this.dataLength = recordLength - addressLength - 1;
+
+        if (this.dataLength > 0) {
+            // Make sure NO data is only for records that should have NO data...
+            if (!isDataRecord(type) && !isHeaderRecord(type)) {
+                throw new IOException("Data found while record-type should not have data!");
+            }
+
+            this.address--;
+        } else if (this.dataLength == 0) {
+            // Make sure NO data is only for records that should have NO data...
+            if (isDataRecord(type) || isHeaderRecord(type)) {
+                throw new IOException("No data found while record-type should have data!");
+            }
+        }
+
+        return type;
+    }
 }

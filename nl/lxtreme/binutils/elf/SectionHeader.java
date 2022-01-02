@@ -3,12 +3,12 @@
  *
  * (C) Copyright 2016 - JaWi - j.w.janssen@lxtreme.nl
  *
- * Licensed under Apache License v2. 
+ * Licensed under Apache License v2.
  */
 package nl.lxtreme.binutils.elf;
 
-import java.io.*;
-import java.nio.*;
+import java.io.IOException;
+import java.nio.ByteBuffer;
 
 /**
  * Represents information about the various sections in an ELF object.

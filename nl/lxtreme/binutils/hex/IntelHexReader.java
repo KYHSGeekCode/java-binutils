@@ -8,10 +8,13 @@
 package nl.lxtreme.binutils.hex;
 
 
-import java.io.*;
-import java.nio.*;
+import java.io.IOException;
+import java.io.Reader;
+import java.nio.ByteOrder;
 
-import nl.lxtreme.binutils.hex.util.*;
+import nl.lxtreme.binutils.hex.util.Checksum;
+import nl.lxtreme.binutils.hex.util.Checksummer;
+import nl.lxtreme.binutils.hex.util.HexUtils;
 
 
 /**
@@ -56,185 +59,154 @@ import nl.lxtreme.binutils.hex.util.*;
  * that.
  * </p>
  */
-public class IntelHexReader extends AbstractReader
-{
-  // CONSTANTS
+public class IntelHexReader extends AbstractReader {
+    // CONSTANTS
 
-  private static final char PREAMBLE = ':';
+    private static final char PREAMBLE = ':';
 
-  private static final int DATA_TYPE = 0;
-  private static final int TERMINATION_TYPE = 1;
-  private static final int EXTENDED_SEGMENT_ADDRESS_TYPE = 2;
-  private static final int START_SEGMENT_ADDRESS_TYPE = 3;
-  private static final int EXTENDED_LINEAR_ADDRESS_TYPE = 4;
-  private static final int START_LINEAR_ADDRESS_TYPE = 5;
+    private static final int DATA_TYPE = 0;
+    private static final int TERMINATION_TYPE = 1;
+    private static final int EXTENDED_SEGMENT_ADDRESS_TYPE = 2;
+    private static final int START_SEGMENT_ADDRESS_TYPE = 3;
+    private static final int EXTENDED_LINEAR_ADDRESS_TYPE = 4;
+    private static final int START_LINEAR_ADDRESS_TYPE = 5;
 
-  // VARIABLES
+    // VARIABLES
 
-  private final Checksummer checksum;
+    private final Checksummer checksum;
 
-  private Integer segmentBaseAddress;
-  private Integer linearAddress;
-  private Integer address;
-  private Integer dataLength;
+    private Integer segmentBaseAddress;
+    private Integer linearAddress;
+    private Integer address;
+    private Integer dataLength;
 
-  // CONSTRUCTORS
+    // CONSTRUCTORS
 
-  /**
-   * Creates a new IntelHexDataProvider instance.
-   *
-   * @param aReader
-   *          the reader to use.
-   */
-  public IntelHexReader( final Reader aReader )
-  {
-    super( aReader );
+    /**
+     * Creates a new IntelHexDataProvider instance.
+     *
+     * @param aReader the reader to use.
+     */
+    public IntelHexReader(final Reader aReader) {
+        super(aReader);
 
-    this.checksum = Checksum.TWOS_COMPLEMENT.instance();
-  }
-
-  // METHODS
-
-  @Override
-  public long getAddress() throws IOException
-  {
-    if ( this.address == null )
-    {
-      throw new IOException( "Unexpected call to getAddress!" );
+        this.checksum = Checksum.TWOS_COMPLEMENT.instance();
     }
-    return this.address.longValue();
-  }
 
-  @Override
-  public int readByte() throws IOException
-  {
-    int ch;
+    // METHODS
 
-    do
-    {
-      ch = readSingleByte();
-      if ( ch == -1 )
-      {
-        // End-of-file reached; return immediately!
-        return -1;
-      }
+    @Override
+    public long getAddress() throws IOException {
+        if (this.address == null) {
+            throw new IOException("Unexpected call to getAddress!");
+        }
+        return this.address.longValue();
+    }
 
-      if ( PREAMBLE == ch )
-      {
-        // New record started...
-        startNewDataRecord();
-      }
-      else if ( this.dataLength != null )
-      {
-        final int secondHexDigit = this.reader.read();
-        if ( secondHexDigit == -1 )
-        {
-          throw new IOException( "Unexpected end-of-stream!" );
+    @Override
+    public int readByte() throws IOException {
+        int ch;
+
+        do {
+            ch = readSingleByte();
+            if (ch == -1) {
+                // End-of-file reached; return immediately!
+                return -1;
+            }
+
+            if (PREAMBLE == ch) {
+                // New record started...
+                startNewDataRecord();
+            } else if (this.dataLength != null) {
+                final int secondHexDigit = this.reader.read();
+                if (secondHexDigit == -1) {
+                    throw new IOException("Unexpected end-of-stream!");
+                }
+
+                final char[] buf = {(char) ch, (char) secondHexDigit};
+
+                final byte dataByte = HexUtils.parseHexByte(buf);
+                if (this.dataLength == 0) {
+                    // All data-bytes returned? If so, verify the CRC we've just read...
+                    final byte calculatedCRC = this.checksum.getResult();
+                    if (dataByte != calculatedCRC) {
+                        throw new IOException("CRC Error! Expected: 0x" + Integer.toHexString(dataByte) + "; got: 0x"
+                                + Integer.toHexString(calculatedCRC));
+                    }
+                } else {
+                    // Decrease the number of hex-bytes we've got to read...
+                    this.checksum.add((byte) dataByte);
+
+                    this.dataLength--;
+                    this.address++;
+
+                    return (dataByte & 0xFF);
+                }
+            }
+        }
+        while (ch != -1);
+
+        // We should never come here; it means that we've found a situation that
+        // isn't covered by our loop above...
+        throw new IOException("Invalid Intel HEX-file!");
+    }
+
+    @Override
+    protected ByteOrder getByteOrder() {
+        return ByteOrder.LITTLE_ENDIAN;
+    }
+
+    /**
+     * Starts a new data record, calculates the initial address, and checks what
+     * kind of data the record contains.
+     *
+     * @throws IOException in case of I/O problems.
+     */
+    private void startNewDataRecord() throws IOException {
+        // First byte is the length of the data record...
+        this.dataLength = (int) HexUtils.readHexByte(this.reader);
+
+        // When a segment base address is previously set, calculate the actual
+        // address by OR-ing this base-address with the address of the record...
+        this.address = HexUtils.readHexWord(this.reader);
+        if ((this.segmentBaseAddress != null) && (this.segmentBaseAddress > 0)) {
+            this.address = this.segmentBaseAddress | this.address;
+        } else if ((this.linearAddress != null) && (this.linearAddress > 0)) {
+            this.address = (this.linearAddress << 16) | this.address;
         }
 
-        final char[] buf = { ( char )ch, ( char )secondHexDigit };
+        final int recordType = HexUtils.readHexByte(this.reader);
 
-        final byte dataByte = HexUtils.parseHexByte( buf );
-        if ( this.dataLength == 0 )
-        {
-          // All data-bytes returned? If so, verify the CRC we've just read...
-          final byte calculatedCRC = this.checksum.getResult();
-          if ( dataByte != calculatedCRC )
-          {
-            throw new IOException( "CRC Error! Expected: 0x" + Integer.toHexString( dataByte ) + "; got: 0x"
-                + Integer.toHexString( calculatedCRC ) );
-          }
+        // Calculate the first part of the record CRC; which is defined as the
+        // ones-complement of all (non-CRC) items in the record...
+        this.checksum.reset();
+        this.checksum.add(this.dataLength.byteValue());
+        this.checksum.add((byte) recordType);
+        this.checksum.addWord(this.address);
+
+        if (DATA_TYPE == recordType) {
+            // Ok, found first data item... Adjust address with a single byte in
+            // order to obtain a valid first address...
+            this.address--;
+        } else if (EXTENDED_SEGMENT_ADDRESS_TYPE == recordType) {
+            this.segmentBaseAddress = HexUtils.readHexWord(this.reader);
+
+            this.checksum.addWord(this.segmentBaseAddress);
+
+            // Ignore the rest of the data; but calculate the CRC...
+            this.dataLength = 0;
+        } else if (EXTENDED_LINEAR_ADDRESS_TYPE == recordType) {
+            this.linearAddress = HexUtils.readHexWord(this.reader);
+
+            this.checksum.addWord(this.linearAddress);
+
+            // Ignore the rest of the data; but calculate the CRC...
+            this.dataLength = 0;
+        } else if (TERMINATION_TYPE == recordType) {
+            // Ignore the rest of the data; but calculate the CRC...
+            this.dataLength = 0;
+        } else if ((START_LINEAR_ADDRESS_TYPE != recordType) && (START_SEGMENT_ADDRESS_TYPE != recordType)) {
+            throw new IOException("Unknown Intel record type: " + recordType);
         }
-        else
-        {
-          // Decrease the number of hex-bytes we've got to read...
-          this.checksum.add( ( byte )dataByte );
-
-          this.dataLength--;
-          this.address++;
-
-          return ( dataByte & 0xFF );
-        }
-      }
     }
-    while ( ch != -1 );
-
-    // We should never come here; it means that we've found a situation that
-    // isn't covered by our loop above...
-    throw new IOException( "Invalid Intel HEX-file!" );
-  }
-
-  @Override
-  protected ByteOrder getByteOrder()
-  {
-    return ByteOrder.LITTLE_ENDIAN;
-  }
-
-  /**
-   * Starts a new data record, calculates the initial address, and checks what
-   * kind of data the record contains.
-   *
-   * @throws IOException
-   *           in case of I/O problems.
-   */
-  private void startNewDataRecord() throws IOException
-  {
-    // First byte is the length of the data record...
-    this.dataLength = ( int )HexUtils.readHexByte( this.reader );
-
-    // When a segment base address is previously set, calculate the actual
-    // address by OR-ing this base-address with the address of the record...
-    this.address = HexUtils.readHexWord( this.reader );
-    if ( ( this.segmentBaseAddress != null ) && ( this.segmentBaseAddress > 0 ) )
-    {
-      this.address = this.segmentBaseAddress | this.address;
-    }
-    else if ( ( this.linearAddress != null ) && ( this.linearAddress > 0 ) )
-    {
-      this.address = ( this.linearAddress << 16 ) | this.address;
-    }
-
-    final int recordType = HexUtils.readHexByte( this.reader );
-
-    // Calculate the first part of the record CRC; which is defined as the
-    // ones-complement of all (non-CRC) items in the record...
-    this.checksum.reset();
-    this.checksum.add( this.dataLength.byteValue() );
-    this.checksum.add( ( byte )recordType );
-    this.checksum.addWord( this.address );
-
-    if ( DATA_TYPE == recordType )
-    {
-      // Ok, found first data item... Adjust address with a single byte in
-      // order to obtain a valid first address...
-      this.address--;
-    }
-    else if ( EXTENDED_SEGMENT_ADDRESS_TYPE == recordType )
-    {
-      this.segmentBaseAddress = HexUtils.readHexWord( this.reader );
-
-      this.checksum.addWord( this.segmentBaseAddress );
-
-      // Ignore the rest of the data; but calculate the CRC...
-      this.dataLength = 0;
-    }
-    else if ( EXTENDED_LINEAR_ADDRESS_TYPE == recordType )
-    {
-      this.linearAddress = HexUtils.readHexWord( this.reader );
-
-      this.checksum.addWord( this.linearAddress );
-
-      // Ignore the rest of the data; but calculate the CRC...
-      this.dataLength = 0;
-    }
-    else if ( TERMINATION_TYPE == recordType )
-    {
-      // Ignore the rest of the data; but calculate the CRC...
-      this.dataLength = 0;
-    }
-    else if ( ( START_LINEAR_ADDRESS_TYPE != recordType ) && ( START_SEGMENT_ADDRESS_TYPE != recordType ) )
-    {
-      throw new IOException( "Unknown Intel record type: " + recordType );
-    }
-  }
 }

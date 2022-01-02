@@ -3,13 +3,14 @@
  *
  * (C) Copyright 2016 - JaWi - j.w.janssen@lxtreme.nl
  *
- * Licensed under Apache License v2. 
+ * Licensed under Apache License v2.
  */
 package nl.lxtreme.binutils.elf;
 
 /**
  * Represent the various types of ABIs that exist (extracted from "elf.h" file from libc6-dev package).
  */
+@SuppressWarnings("ALL")
 public enum AbiType {
     SYSV(0, "UNIX System V ABI"),
     HPUX(1, "HP-UX"),

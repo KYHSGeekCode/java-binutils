@@ -3,7 +3,7 @@
  *
  * (C) Copyright 2016 - JaWi - j.w.janssen@lxtreme.nl
  *
- * Licensed under Apache License v2. 
+ * Licensed under Apache License v2.
  */
 package nl.lxtreme.binutils.elf;
 
@@ -47,6 +47,7 @@ public class DynamicEntry {
         public static final Tag ENCODING = new Tag(32, "Start of encoded range");
         public static final Tag PREINIT_ARRAY = new Tag(32, "Array with addresses of preinit fct");
         public static final Tag PREINIT_ARRAYSZ = new Tag(33, "size in bytes of DT_PREINIT_ARRAY");
+        public static final Tag UNKNOWN = new Tag(-1, "Unknown");
 
         public static final Tag GNU_PRELINKED = new Tag(0x6ffffdf5, "Prelinking timestamp");
         public static final Tag GNU_CONFLICTSZ = new Tag(0x6ffffdf6, "Size of conflict section");
@@ -81,12 +82,12 @@ public class DynamicEntry {
         public static final Tag VERNEEDNUM = new Tag(0x6fffffff, "Number of needed versions");
 
         private static final Tag[] VALUES =
-            { NULL, NEEDED, PLTRELSZ, PLTGOT, HASH, STRTAB, SYMTAB, RELA, RELASZ, RELAENT, STRSZ, SYMENT, INIT, FINI,
-                SONAME, RPATH, SYMBOLIC, REL, RELSZ, RELENT, PLTREL, DEBUG, TEXTREL, JMPREL, BIND_NOW, INIT_ARRAY,
-                FINI_ARRAY, INIT_ARRAYSZ, FINI_ARRAYSZ, RUNPATH, FLAGS, ENCODING, PREINIT_ARRAY, PREINIT_ARRAYSZ,
-                GNU_PRELINKED, GNU_CONFLICTSZ, GNU_LIBLISTSZ, CHECKSUM, PLTPADSZ, MOVEENT, MOVESZ, FEATURE_1, POSFLAG_1,
-                SYMINSZ, GNU_HASH, TLSDESC_PLT, TLSDESC_GOT, GNU_CONFLICT, GNU_LIBLIST, CONFIG, DEPAUDIT, AUDIT, PLTPAD,
-                MOVETAB, SYMINFO, VERSYM, RELACOUNT, RELCOUNT, FLAGS_1, VERDEF, VERDEFNUM, VERNEED, VERNEEDNUM };
+                {NULL, NEEDED, PLTRELSZ, PLTGOT, HASH, STRTAB, SYMTAB, RELA, RELASZ, RELAENT, STRSZ, SYMENT, INIT, FINI,
+                        SONAME, RPATH, SYMBOLIC, REL, RELSZ, RELENT, PLTREL, DEBUG, TEXTREL, JMPREL, BIND_NOW, INIT_ARRAY,
+                        FINI_ARRAY, INIT_ARRAYSZ, FINI_ARRAYSZ, RUNPATH, FLAGS, ENCODING, PREINIT_ARRAY, PREINIT_ARRAYSZ,
+                        GNU_PRELINKED, GNU_CONFLICTSZ, GNU_LIBLISTSZ, CHECKSUM, PLTPADSZ, MOVEENT, MOVESZ, FEATURE_1, POSFLAG_1,
+                        SYMINSZ, GNU_HASH, TLSDESC_PLT, TLSDESC_GOT, GNU_CONFLICT, GNU_LIBLIST, CONFIG, DEPAUDIT, AUDIT, PLTPAD,
+                        MOVETAB, SYMINFO, VERSYM, RELACOUNT, RELCOUNT, FLAGS_1, VERDEF, VERDEFNUM, VERNEED, VERNEEDNUM};
 
         private static final int DT_LOOS = 0x6000000d;
         private static final int DT_HIOS = 0x6fffffff;
@@ -104,7 +105,9 @@ public class DynamicEntry {
             } else if (value >= DT_LOPROC && value <= DT_HIPROC) {
                 return new Tag(value, "Processor-specific tag");
             } else {
-                throw new IllegalArgumentException("Invalid/unknown tag: " + Integer.toHexString(value));
+                System.err.println("Invalid/unknown tag: " + Integer.toHexString(value));
+                return UNKNOWN;
+//                throw new IllegalArgumentException();
             }
         }
 

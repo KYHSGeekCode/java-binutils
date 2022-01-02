@@ -3,7 +3,7 @@
  *
  * (C) Copyright 2016 - JaWi - j.w.janssen@lxtreme.nl
  *
- * Licensed under Apache License v2. 
+ * Licensed under Apache License v2.
  */
 package nl.lxtreme.binutils.elf;
 

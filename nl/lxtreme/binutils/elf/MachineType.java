@@ -3,7 +3,7 @@
  *
  * (C) Copyright 2016 - JaWi - j.w.janssen@lxtreme.nl
  *
- * Licensed under Apache License v2. 
+ * Licensed under Apache License v2.
  */
 package nl.lxtreme.binutils.elf;
 
@@ -96,7 +96,7 @@ public enum MachineType {
     private final int no;
     private final String desc;
 
-    private MachineType(int no, String desc) {
+    MachineType(int no, String desc) {
         this.no = no;
         this.desc = desc;
     }

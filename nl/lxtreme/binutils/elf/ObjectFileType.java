@@ -3,7 +3,7 @@
  *
  * (C) Copyright 2016 - JaWi - j.w.janssen@lxtreme.nl
  *
- * Licensed under Apache License v2. 
+ * Licensed under Apache License v2.
  */
 package nl.lxtreme.binutils.elf;
 
@@ -14,7 +14,7 @@ public final class ObjectFileType {
     public static final ObjectFileType DYN = new ObjectFileType(3, "shared object");
     public static final ObjectFileType CORE = new ObjectFileType(4, "core file");
 
-    private static final ObjectFileType[] VALUES = { NONE, REL, EXEC, DYN, CORE };
+    private static final ObjectFileType[] VALUES = {NONE, REL, EXEC, DYN, CORE};
 
     private static final int ET_LOOS = 0xfe00;
     private static final int ET_HIOS = 0xfeff;

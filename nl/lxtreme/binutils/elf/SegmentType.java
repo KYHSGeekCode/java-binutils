@@ -3,7 +3,7 @@
  *
  * (C) Copyright 2016 - JaWi - j.w.janssen@lxtreme.nl
  *
- * Licensed under Apache License v2. 
+ * Licensed under Apache License v2.
  */
 package nl.lxtreme.binutils.elf;
 
@@ -26,7 +26,7 @@ public class SegmentType {
     public static final SegmentType SUNWSTACK = new SegmentType(0x6ffffffb, "Sun Stack segment");
 
     public static final SegmentType[] VALUES =
-        { NULL, LOAD, DYNAMIC, INTERP, NOTE, SHLIB, PHDR, TLS, GNU_EH_FRAME, GNU_STACK, GNU_RELRO, SUNWBSS, SUNWSTACK };
+            {NULL, LOAD, DYNAMIC, INTERP, NOTE, SHLIB, PHDR, TLS, GNU_EH_FRAME, GNU_STACK, GNU_RELRO, SUNWBSS, SUNWSTACK};
 
     private static final int PT_LOOS = 0x60000000;
     private static final int PT_HIOS = 0x6fffffff;

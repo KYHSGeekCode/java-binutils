@@ -3,7 +3,7 @@
  *
  * (C) Copyright 2016 - JaWi - j.w.janssen@lxtreme.nl
  *
- * Licensed under Apache License v2. 
+ * Licensed under Apache License v2.
  */
 package nl.lxtreme.binutils.elf;
 
@@ -38,10 +38,11 @@ public class SectionType {
     public static final SectionType GNU_VERDEF = new SectionType(0x6ffffffd, "GNU version definition section");
     public static final SectionType GNU_VERNEED = new SectionType(0x6ffffffe, "GNU version needs section");
     public static final SectionType GNU_VERSYM = new SectionType(0x6fffffff, "GNU version symbol table");
+    public static final SectionType UNKNOWN = new SectionType(-1, "Unknown");
 
-    private static final SectionType[] VALUES = { NULL, PROGBITS, SYMTAB, STRTAB, RELA, HASH, DYNAMIC, NOTE, NOBITS,
-        REL, SHLIB, DYNSYM, INIT_ARRAY, FINI_ARRAY, PREINIT_ARRAY, GROUP, SYMTAB_SHNDX, GNU_ATTRIBUTES, GNU_HASH,
-        GNU_LIBLIST, CHECKSUM, SUNW_MOVE, SUNW_COMDAT, SUNW_SYMINFO, GNU_VERDEF, GNU_VERNEED, GNU_VERSYM };
+    private static final SectionType[] VALUES = {NULL, PROGBITS, SYMTAB, STRTAB, RELA, HASH, DYNAMIC, NOTE, NOBITS,
+            REL, SHLIB, DYNSYM, INIT_ARRAY, FINI_ARRAY, PREINIT_ARRAY, GROUP, SYMTAB_SHNDX, GNU_ATTRIBUTES, GNU_HASH,
+            GNU_LIBLIST, CHECKSUM, SUNW_MOVE, SUNW_COMDAT, SUNW_SYMINFO, GNU_VERDEF, GNU_VERNEED, GNU_VERSYM};
 
     private static final int SHT_LOOS = 0x60000000;
     private static final int SHT_HIOS = 0x6fffffff;
@@ -63,7 +64,9 @@ public class SectionType {
         } else if (value >= SHT_LOUSER && value <= SHT_HIUSER) {
             return new SectionType(value, "User-specific segment");
         }
-        throw new IllegalArgumentException("Invalid segment type!");
+        System.err.println("Invalid segment type!" + value);
+        return UNKNOWN;
+//        throw new IllegalArgumentException("Invalid segment type!" + value);
     }
 
     private final int no;
